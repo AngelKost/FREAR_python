@@ -1,0 +1,26 @@
+[project]
+name = "frear"
+version = "0.1.0"
+description = "Python implementation of FREAR Bayesian atmospheric reconstruction."
+authors = [{name="AngelKost"}]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {file="LICENSE"}
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib",
+    "cartopy"
+]
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

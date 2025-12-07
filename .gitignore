@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Editor settings
+.vscode/
+.idea/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# Outputs
+outputs/
