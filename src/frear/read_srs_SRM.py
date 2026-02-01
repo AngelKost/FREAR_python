@@ -30,7 +30,7 @@ def readSRM_header(srmfile: str) -> Dict[str, Any]:
         header (Dict[str, Any]): A dictionary containing the header information.
     """
     expected_columns = [
-        "statlon", "statlat", "sampStartDate", "sampStartHour",
+        "statlat", "statlon", "sampStartDate", "sampStartHour",
         "sampEndDate", "sampEndHour", "mass", "nsimhours",
         "outputfreq", "aveTime", "dx", "dy", "stat"
     ]
@@ -70,6 +70,12 @@ def get_srs_fixedperiod(srm_fixedperiod: pd.DataFrame, srm_spread_fixedperiod: O
 
     srs_fixedPeriod = np.zeros((nx, ny))
     srs_spread_fixedPeriod = np.zeros((nx, ny)) if has_spread else None
+
+    if srm_fixedperiod.empty:
+        return {
+            "srs_fixedPeriod": srs_fixedPeriod,
+            "srs_spread_fixedPeriod": srs_spread_fixedPeriod,
+        }
 
     srm_fixedperiod = srm_fixedperiod.sort_values(["ix", "iy"]).reset_index(drop=True)
 
@@ -272,6 +278,7 @@ def read_all_srm(srmpaths: Union[Dict[Any, List[np.ndarray]], List[np.ndarray]],
                         pickle.dump(out, open(proc_paths[0], 'wb'))
                 out_srs = out['srs']
                 out_srs_spread = out['srs_spread']
+
                 if len(paths) > 1:
                     for jpath in range(1, len(paths)):
                         if srm_processed is not None and os.path.exists(proc_paths[jpath]):
@@ -287,7 +294,23 @@ def read_all_srm(srmpaths: Union[Dict[Any, List[np.ndarray]], List[np.ndarray]],
                                 out_srs_spread = out['srs_spread']
                             else:
                                 out_srs_spread += out['srs_spread']
-                srs_single_member.append(out_srs / len(paths))
+
+                
+                out_srs /= len(paths)
+
+                if ipath == 0:
+                    ntimes = len(out_srs[:, 0, 0])
+                    nx = len(out_srs[0, :, 0])
+                    ny = len(out_srs[0, 0, :])
+                    nsamples = len(srmpaths[member])
+                    srs_single_member = np.empty(
+                        (ntimes, nx, ny, nsamples),
+                        dtype=out_srs.dtype
+                    )
+                    srs_single_member[..., ipath] = out_srs
+                else:
+                    srs_single_member[..., ipath] = out_srs
+
                 if out_srs_spread is not None:
                     srs_spread_single_member.append(out_srs_spread / len(paths))
                 else:
@@ -296,11 +319,6 @@ def read_all_srm(srmpaths: Union[Dict[Any, List[np.ndarray]], List[np.ndarray]],
         else:
             raise NotImplementedError("Parallel processing not implemented") #FIXME: implement parallel reading
     
-        ntimes = len(srs_single_member[0][:, 0, 0])
-        nx = len(srs_single_member[0][0, :, 0])
-        ny = len(srs_single_member[0][0, 0, :])
-        nsamples = len(srs_single_member)
-        srs_single_member = np.stack(srs_single_member, axis=-1)
         srs[member] = srs_single_member
         if srs_spread_single_member is not None:
             srs_spread_single_member = np.stack(srs_spread_single_member, axis=-1)
