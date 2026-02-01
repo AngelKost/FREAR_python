@@ -144,7 +144,7 @@ def p_ndet_cmod(L_C: np.ndarray, logmod: np.ndarray, sigma_mod: np.ndarray, eps:
     )
     return integral
 
-def ll_Yee2017log_det(ac: np.ndarray, 
+def ll_Yee2017log_det(ac: Dict[str, Any],
                       alphas: np.ndarray = np.array(1.0 / np.pi), betas: np.ndarray = np.array(1.0), 
                       Ys: Optional[np.ndarray] = None, 
                       ll_noRelease: Optional[np.ndarray] = None) -> np.ndarray:
@@ -179,7 +179,7 @@ def ll_Yee2017log_det(ac: np.ndarray,
     likes = np.zeros(nsamples)
 
     # If precalculated values of ll exist (for ac['mod'] == 0), then make use of it
-    if ll_noRelease is not None:
+    if ll_noRelease is not None and not np.isnan(ll_noRelease).any():
         iprecalc = np.where(ac['mod'] == 0)[0]
         icalc = np.where(ac['mod'] != 0)[0]
         likes[iprecalc] = ll_noRelease[iprecalc]
@@ -206,33 +206,39 @@ def ll_Yee2017log_det(ac: np.ndarray,
             likes[icalcfast] = np.log(llcdet_cmod)
         if len(icalc) > 0:
             # Slow calculation including possibility of false alarm
-            lowLim = np.where(ac['mod'] < MDC,
+
+            mod_subset = ac['mod'][icalc]
+            sigma_mod_subset = ac['sigma_mod'][icalc]
+            logmod_subset = logmod[icalc]
+            MDC_subset = MDC[icalc]
+
+            lowLim = np.where(mod_subset < MDC_subset,
                               0,
-                              np.maximum(0, ac['mod'] - 100 * ac['sigma_mod']))
-            uppLim = np.where(ac['mod'] < MDC,
-                              MDC * 10,
-                              np.maximum(MDC * 10,
-                                         ac['mod'] + np.minimum(10 * ac['mod'], 100 * ac['sigma_mod'])))
-            zdctruenorm = np.ones(nsamples)
-            for i in icalc:
+                              np.maximum(0, mod_subset - 100 * sigma_mod_subset))
+            uppLim = np.where(mod_subset < MDC_subset,
+                              MDC_subset * 10,
+                              np.maximum(MDC_subset * 10,
+                                         mod_subset + np.minimum(10 * mod_subset, 100 * sigma_mod_subset)))
+            zdctruenorm = np.ones(len(icalc))
+            for i in range(len(icalc)):
                 integral, _ = integrate.quad(
-                    lambda ctrue: dctrue(ctrue, logmod[i], sigma_tot[i], eps, Ys[i], alphas[i], betas[i]),
+                    lambda ctrue: dctrue(ctrue, logmod_subset[i], sigma_tot[icalc[i]], eps, Ys[icalc[i]], alphas[icalc[i]], betas[icalc[i]]),
                     lowLim[i],
                     uppLim[i]
                 )
                 zdctruenorm[i] = integral
             lltruendet_cmod = np.array([
                 p_true_ndet_cmod(
-                    L_C=L_C[i],
-                    logmod=logmod[i],
-                    sigma_tot=sigma_tot[i],
+                    L_C=L_C[icalc[i]],
+                    logmod=logmod_subset[i],
+                    sigma_tot=sigma_tot[icalc[i]],
                     eps=eps,
-                    Y=Ys[i],
-                    alpha=alphas[i],
-                    beta=betas[i],
+                    Y=Ys[icalc[i]],
+                    alpha=alphas[icalc[i]],
+                    beta=betas[icalc[i]],
                     zdctruenorm=zdctruenorm[i]
                 ) 
-                for i in icalc
+                for i in range(len(icalc))
             ])
             lltruedet_cmod = 1.0 - lltruendet_cmod
 
@@ -246,7 +252,7 @@ def ll_Yee2017log_det(ac: np.ndarray,
             
             llcdet_cmod = dctrue(
                 ctrue=ac['obs'][icalc],
-                logmod=logmod[icalc],
+                logmod=logmod_subset,
                 sigma_tot=sigma_tot[icalc],
                 eps=eps,
                 Y=Ys[icalc],
@@ -291,7 +297,7 @@ def ll_Yee2017log_nondet(ac: Dict[str, Any],
     likes = np.zeros(nsamples)
 
     # If precalculated values of ll exist (for ac['mod'] == 0), then make use of it
-    if ll_noRelease is not None:
+    if ll_noRelease is not None and not np.isnan(ll_noRelease).any():
         iprecalc = np.where(ac['mod'] == 0)[0]
         icalc = np.where(ac['mod'] != 0)[0]
         likes[iprecalc] = ll_noRelease[iprecalc]
@@ -299,32 +305,36 @@ def ll_Yee2017log_nondet(ac: Dict[str, Any],
         icalc = np.arange(nsamples)
 
     if len(icalc) > 0:
-        ac['mod'] = np.maximum(ac['mod'], 0.01 * MDC)  # Some problems for very small ac['mod']
-        logmod = np.log(ac['mod'] + eps)
-        lowLim = np.where(ac['mod'] < MDC,
+        mod_subset = ac['mod'][icalc]
+        MDC_subset = MDC[icalc]
+        mod_subset = np.maximum(mod_subset, 0.01 * MDC_subset)  # Some problems for very small ac['mod']
+        sigma_mod_subset = ac['sigma_mod'][icalc]
+
+        logmod = np.log(mod_subset + eps)
+        lowLim = np.where(mod_subset < MDC_subset,
                           0,
-                          np.maximum(0, ac['mod'] - 100 * ac['sigma_mod']))
-        uppLim = np.where(ac['mod'] < MDC,
-                          10 * MDC,
-                          np.maximum(10 * MDC, ac['mod'] + np.minimum(10 * ac['mod'], 100 * ac['sigma_mod'])))
-        zdctruenorm = np.ones(len(nsamples))
-        for i in icalc:
+                          np.maximum(0, mod_subset - 100 * sigma_mod_subset))
+        uppLim = np.where(mod_subset < MDC_subset,
+                          10 * MDC_subset,
+                          np.maximum(10 * MDC_subset, mod_subset + np.minimum(10 * mod_subset, 100 * sigma_mod_subset)))
+        zdctruenorm = np.ones(len(icalc))
+        for i in range(len(icalc)):
             integral, _ = integrate.quad(
-                lambda ctrue: dctrue(ctrue, logmod[i], sigma_tot[i], eps, Ys[i], alphas[i], betas[i]),
+                lambda ctrue: dctrue(ctrue, logmod[i], sigma_tot[icalc[i]], eps, Ys[icalc[i]], alphas[icalc[i]], betas[icalc[i]]),
                 lowLim[i],
                 uppLim[i]
             )
             zdctruenorm[i] = integral
-        llndet_cmod = np.array([p_ndet_cmod(L_C=L_C[i], 
+        llndet_cmod = np.array([p_ndet_cmod(L_C=L_C[icalc[i]], 
                                             logmod=logmod[i], 
-                                            sigma_mod=ac['sigma_mod'][i], 
+                                            sigma_mod=sigma_mod_subset[i], 
                                             eps=eps,
-                                            Y=Ys[i], 
-                                            alpha=alphas[i], 
-                                            beta=betas[i], 
+                                            Y=Ys[icalc[i]], 
+                                            alpha=alphas[icalc[i]], 
+                                            beta=betas[icalc[i]], 
                                             zdctruenorm=zdctruenorm[i]) 
-                               for i in icalc])
-        likes = np.log(llndet_cmod)
+                               for i in range(len(icalc))])
+        likes[icalc] = np.log(llndet_cmod)
     return likes
 
 def getLikes_Yee2017log(ac: Dict[str, Any], ll_out: Optional[Dict[str, Any]] = {
