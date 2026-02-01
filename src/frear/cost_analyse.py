@@ -53,6 +53,7 @@ def plot_cost(cost: np.ndarray, domain: Dict[str, Any],
             [0, 0.01, 0.02, 0.05, 0.10, 0.20, 0.50, 1.00]
         )
         levels = np.round(q, 1)
+        levels = np.unique(levels)
 
     plot_2D_direct(
         data=cost.T,
@@ -444,7 +445,7 @@ def write_cost(optsed: np.ndarray, mod_error_cost: np.ndarray,
 
     lon = lat = None
     # Use true values if available
-    if not np.isnan(settings['trueValues'][0]) and not np.isnan(settings['trueValues'][1]):
+    if settings['trueValues'][0] is not None and settings['trueValues'][1] is not None and not np.isnan(settings['trueValues'][0]) and not np.isnan(settings['trueValues'][1]):
         lon = settings['trueValues'][0]
         lat = settings['trueValues'][1]
         ix = lon2ix(lon=lon, lon0=settings['domain']['lonmin'], dx=settings['domain']['dx'])
