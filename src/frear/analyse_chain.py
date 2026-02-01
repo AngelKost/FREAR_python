@@ -308,6 +308,7 @@ def aux_marginal_post(chainburned: np.ndarray, times: np.ndarray, true_values: n
     """
 
     true_values = true_values.copy()
+    true_values = [tv if tv is not None else np.nan for tv in true_values]
     post_median = post_median.copy()
     post_mode = post_mode.copy()
 
