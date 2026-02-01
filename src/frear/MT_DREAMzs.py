@@ -125,7 +125,7 @@ def calc_proposal_noSnooker(X: np.ndarray, Z: np.ndarray, M: int, CR: float,
         if counter > 1:
             print("Problem in second while loop - This should not happen - counter:", counter)
             print("xprops_post:", xprops_post)
-            print(posterior.density(xprops.T))
+            print(posterior['density'](xprops.T))
 
         for iprop in range(nMTM - 1):
             xprops[:, iprop] = make_proposal(z, Z, M, DEpairs, npar, CR, zgammaFactor, e, eps)
