@@ -6,17 +6,28 @@ from frear.domain import lon2ix, lat2iy
 
 def lonlat2weightedixiy(lon: float, lat: float, lon0: float, lat0: float, dx: float, dy: float) -> np.ndarray:
     """Convert lon, lat to ix, iy, weights for bilinear interpolation"""
-    lon1 = np.floor(lon / dx) * dx
-    lon2 = np.ceil(lon / dx) * dx
-    lat1 = np.floor(lat / dy) * dy
-    lat2 = np.ceil(lat / dy) * dy
-    lons = np.array([lon1, lon1, lon2, lon2])
-    lats = np.array([lat1, lat2, lat1, lat2])
-    weights = dx**2 + dy**2 - ((lons - lon)**2 + (lats - lat)**2)
-    weights = weights / np.sum(weights)
-    ix = lon2ix(lons, lon0, dx)
-    iy = lat2iy(lats, lat0, dy)
-    return np.column_stack((ix, iy, weights))
+
+    left = int(np.floor((lon - lon0) / dx))
+    bottom = int(np.floor((lat - lat0) / dy))
+    
+    u = (lon - (lon0 + left * dx)) / dx
+    v = (lat - (lat0 + bottom * dy)) / dy
+    
+    indices = np.array([
+        [left,     bottom],
+        [left,     bottom + 1],
+        [left + 1, bottom],
+        [left + 1, bottom + 1]
+    ])
+    
+    weights = np.array([
+        (1 - u) * (1 - v),
+        (1 - u) * v,
+        u * (1 - v),
+        u * v
+    ])
+    
+    return np.column_stack((indices[:, 0], indices[:, 1], weights))
 
 def gettemporalfactor(ntimes: int, rstart: float, rstop: float) -> np.ndarray:
     """Get temporal factor for rectangular release between rstart and rstop (fractions of total time)"""
