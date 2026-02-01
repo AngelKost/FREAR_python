@@ -110,7 +110,12 @@ def plot_2D_direct(
         cmap = LinearSegmentedColormap.from_list("custom_cmap", colors)
         cf = ax.contourf(xi, yi, data, levels=20, cmap=cmap)
     else:
-        N = len(levels) - 1
+        N = len(levels) - 1    
+
+        levels = np.asarray(levels, dtype=float)
+        levels = levels[np.isfinite(levels)]  # Remove NaN/inf
+        levels = np.unique(levels)
+        
         cmap = LinearSegmentedColormap.from_list("custom_cmap", colors, N=N)
         norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
         cf = ax.contourf(xi, yi, data, levels=levels, cmap=cmap, norm=norm, extend='max')
@@ -188,6 +193,8 @@ def plot_2D_kde(
     if levels is None:
         cf = ax.contourf(xi, yi, zi, levels=n_levels, cmap=cmap)
     else:
+        if len(levels) > 1:
+            levels = np.sort(levels)
         cf = ax.contourf(xi, yi, zi, levels=levels, cmap=cmap)
     if fig is not None:
         fig.colorbar(cf, ax=ax, label=labels[2])
