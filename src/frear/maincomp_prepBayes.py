@@ -142,7 +142,8 @@ def maincomp_prepbayes(settings: Dict[str, Any], data: Dict[str, Any]) -> Dict[s
 
     def ll_logdensity(par: np.ndarray) -> Dict[str, Any]:
         ac = ACfun_bayes(par=par)
-        return np.sum(ll(ac=ac, ll_out=ll_out)["likes"])
+        res_ll = np.sum(ll(ac=ac, ll_out=ll_out)["likes"])
+        return res_ll
     
     ll_out['ll_logdensity'] = ll_logdensity
 
