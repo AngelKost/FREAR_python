@@ -4,6 +4,21 @@ import scipy.special as sc
 from typing import Any, Dict, Optional
 from scipy.optimize import minimize
 
+def _allocate(source: np.ndarray, path: str = "srs_error.mmap") -> Any:
+    """Allocate an array with the same type as source and given shape
+    
+    Parameters:
+        source (np.ndarray): Source array to match type
+        path (str): Path for memory-mapped array
+    Returns:
+        allocated_array (np.ndarray): New array like source
+    """
+    if isinstance(source, np.memmap):
+        allocated_array = np.memmap(path, dtype=source.dtype, mode='w+', shape=source.shape)
+    else:
+        allocated_array = np.empty_like(source)
+    return allocated_array
+
 def calc_srs_error(srs_raw: np.ndarray, settings: Dict[str, Any], 
                    srs_spread_raw: Optional[np.ndarray] = None) -> np.ndarray:
     """Calculate source-receptor sensitivity (SRS) error
@@ -17,10 +32,17 @@ def calc_srs_error(srs_raw: np.ndarray, settings: Dict[str, Any],
     Returns:
         srs_error (np.ndarray): Calculated SRS error
     """
+
+    # Set a minimum floor for SRS error - 1e-7 creates too many influence for zero SRS
+    floor = 0.5 * srs_raw[0].mean()
+
     if srs_spread_raw is not None:
         srs_error = srs_spread_raw[0]
-    elif isinstance(srs_raw, (list, tuple)) and len(srs_raw) == 1:
-        srs_error = settings['srsrelError'] * np.maximum(srs_raw[0], 1e-7)
+    elif isinstance(srs_raw, (list, tuple, dict)) and len(srs_raw) == 1:
+        srs_error = _allocate(srs_raw[0])
+        for i in range(len(srs_raw[0])):
+            for j in range(srs_raw[0][i].shape[0]):
+                srs_error[i][j] = settings['srsrelError'] * np.maximum(srs_raw[0][i][j], floor)
     else:
         if not isinstance(srs_raw, (list, tuple)):
             raise ValueError('srs_raw must be a list of ensemble arrays when srs_spread_raw is None')
