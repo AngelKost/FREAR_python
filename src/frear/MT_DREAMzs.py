@@ -267,8 +267,8 @@ def update_chain(ichain: int, X: np.ndarray, logpost_X: np.ndarray, Z: np.ndarra
         r_extra = aux["r_extra"]
 
         logpost_xprop = posterior['density'](xprop)
-        if not np.isnan(logpost_xprop[2] - logpost_X[ichain, 2]):
-            if (logpost_xprop[2] - logpost_X[ichain, 2] + r_extra) > np.log(np.random.rand()):
+        if not np.isnan(logpost_xprop['posterior'] - logpost_X[ichain, 2]):
+            if (logpost_xprop['posterior'] - logpost_X[ichain, 2] + r_extra) > np.log(np.random.rand()):
                 X_new = xprop
                 logpost_X_new = logpost_xprop
                 ARs_new += 1
