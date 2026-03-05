@@ -48,12 +48,15 @@ def plot_cost(cost: np.ndarray, domain: Dict[str, Any],
         levels = np.unique(levels)
 
     else:
-        q = np.quantile(
-            cost,
-            [0, 0.01, 0.02, 0.05, 0.10, 0.20, 0.50, 1.00]
-        )
-        levels = np.round(q, 1)
-        levels = np.unique(levels)
+        decimals = 1
+        while levels is None or len(levels) < 3:
+            q = np.quantile(
+                cost,
+                [0, 0.01, 0.02, 0.05, 0.10, 0.20, 0.50, 1.00]
+            )
+            levels = np.round(q, decimals)
+            levels = np.unique(levels)
+            decimals += 1
 
     plot_2D_direct(
         data=cost.T,
