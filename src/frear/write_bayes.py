@@ -8,7 +8,7 @@ import matplotlib.colors as mcolors
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from scipy.stats import gaussian_kde
 
 from frear.analyse_chain import plot_trace
@@ -17,6 +17,46 @@ from frear.analyse_chain import monovar_marginal_post
 from frear.analyse_chain import bivariate_marginal_post
 from frear.plot_timeseries import plot_ac_timeseries
 from frear.plot_geofield import add_IMS, add_reactors
+
+def get_zoomed_lon_range(lons: np.ndarray, bound: int) -> Tuple[float, float, float]:
+    """
+    Get zoomed longitude range handling crossing of 180 meridian
+
+    Parameters:
+        lons (np.ndarray): Array of longitudes
+        bound (int): Boundary to add around the min/max longitude
+
+    Returns:
+        Tuple[float, float, float]: Zoomed longitude range (lonmin, lonmax, central_lon)
+    """
+    # Algorithm finding largest gap in sorted unique longitudes to determine crossing of 180 meridian
+
+    unique_lons = np.sort(np.unique(lons))
+
+    if len(unique_lons) == 1:
+        lonmin = unique_lons[0] - bound
+        lonmax = unique_lons[0] + bound
+        return lonmin, lonmax, unique_lons[0]
+
+    gaps = np.diff(unique_lons)
+    gaps = np.append(gaps, 360 - (unique_lons[-1] - unique_lons[0]))
+    
+    max_gap_idx = np.argmax(gaps)
+    
+    if max_gap_idx == len(unique_lons) - 1:
+        # Normal case (data does not cross the 180/-180 seam) -> min/max of unique lons
+        lon_start, lon_end = unique_lons[0], unique_lons[-1]
+    else:
+        # Crossing the meridian: choose opposite of gap as start/end
+        lon_start = unique_lons[max_gap_idx + 1]
+        lon_end = unique_lons[max_gap_idx] + 360
+        
+    lonmin = lon_start - bound
+    lonmax = lon_end + bound
+
+    central_lon = ((lon_start + lon_end) / 2.)
+
+    return lonmin, lonmax, central_lon
 
 
 def plot_probloc_plain(probloc: np.ndarray, domain: Dict[str, Any], title: str = "", IMSfile: Optional[str] = None, reactorfile: Optional[str] = None, outpath: Optional[str] = None, show: bool = True):
@@ -68,7 +108,8 @@ def plot_probloc_plain(probloc: np.ndarray, domain: Dict[str, Any], title: str =
 def plot_probloc_kde(chainburned: np.ndarray, domain: Dict[str, Any], 
                      IMSfile: Optional[str] = None, reactorfile: Optional[str] = None, 
                      breaks = np.arange(0.1, 1.1, 0.1), title='Source density',
-                     outpath: Optional[str] = None, show: bool = True):
+                     outpath: Optional[str] = None, filename: str = 'probloc_kde.pdf',
+                     show: bool = True):
     """Plot probability over location using kernel density estimation
     
     Parameters:
@@ -79,10 +120,11 @@ def plot_probloc_kde(chainburned: np.ndarray, domain: Dict[str, Any],
         breaks (np.ndarray): Breakpoints for contour levels
         title (str): Title of the plot
         outpath (Optional[str]): Directory to save the plot
+        filename (str): Filename for the saved plot
         show (bool): Whether to display the plot
     """
     fig = plt.figure(figsize=(10, 10))
-    ax = plt.axes(projection=ccrs.PlateCarree())
+    ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=domain.get('central_lon', 0)))
 
     x = chainburned[:,0]
     y = chainburned[:,1]
@@ -95,8 +137,12 @@ def plot_probloc_kde(chainburned: np.ndarray, domain: Dict[str, Any],
     
     zi_norm = zi / zi.max()
     
-    cf = ax.contourf(xi, yi, zi_norm, levels=breaks, cmap='Reds', alpha=0.6)
-
+    cf = ax.contourf(xi, yi, zi_norm, levels=breaks, cmap='Reds', alpha=0.6,
+                     transform=ccrs.PlateCarree())
+    
+    ax.set_extent([domain['lonmin'], domain['lonmax'], 
+                   domain['latmin'], domain['latmax']], 
+                  crs=ccrs.PlateCarree())
     ax.coastlines()
     ax.add_feature(cfeature.BORDERS)
     ax.gridlines(draw_labels=True)
@@ -113,14 +159,15 @@ def plot_probloc_kde(chainburned: np.ndarray, domain: Dict[str, Any],
     ax.set_title(title)
     
     if outpath is not None:
-        plt.savefig(os.path.join(outpath, 'probloc_kde.pdf'))
+        plt.savefig(os.path.join(outpath, filename))
     if show:
         plt.show()
 
 def plot_probloc_kde_zoom(chainburned: np.ndarray, domain: Dict[str, Any], 
                           bound: int = 2, breaks: np.ndarray =np.arange(0.1, 1.1, 0.1), 
                           IMSfile: Optional[str] = None, reactorfile: Optional[str] = None,
-                          outpath: Optional[str] = None, show: bool = True):
+                          outpath: Optional[str] = None, filename: str = 'probloc_kde_zoom.pdf',
+                          show: bool = True):
     """Plot zoomed probability over location using kernel density estimation
     
     Parameters:
@@ -131,15 +178,23 @@ def plot_probloc_kde_zoom(chainburned: np.ndarray, domain: Dict[str, Any],
         breaks (np.ndarray): Breakpoints for contour levels
         title (str): Title of the plot
         outpath (Optional[str]): Directory to save the plot
+        filename (str): Filename for the saved plot
         show (bool): Whether to display the plot
     """
     zoomed_domain = domain.copy()
-    zoomed_domain['lonmin'] = np.floor(np.min(chainburned[:,0])) - bound
+    
+    lons = chainburned[:,0].copy()
+    lonmin, lonmax, central_lon = get_zoomed_lon_range(lons, bound)
+    zoomed_domain['lonmin'] = lonmin
+    zoomed_domain['lonmax'] = lonmax
+    zoomed_domain['central_lon'] = central_lon
+    
+    # Latitude has no issues (probably no measurements near poles)
     zoomed_domain['latmin'] = np.floor(np.min(chainburned[:,1])) - bound
-    zoomed_domain['lonmax'] = np.ceil(np.max(chainburned[:,0])) + bound
     zoomed_domain['latmax'] = np.ceil(np.max(chainburned[:,1])) + bound
+    
     plot_probloc_kde(chainburned, zoomed_domain, breaks=breaks, IMSfile=IMSfile, 
-                     reactorfile=reactorfile, outpath=outpath, show=show)
+                     reactorfile=reactorfile, outpath=outpath, filename=filename, show=show)
 
 
 def write_bayes(out: Dict[str, Any], mcmc: Dict[str, Any], 
