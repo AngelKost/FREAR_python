@@ -467,16 +467,17 @@ def MT_DREAMzs(density: Any, sampler: Any, ll_logdensity: Any,
             with np.errstate(divide='ignore', invalid='ignore'):
                 diff = (Xold[:, :npar] - X[:, :npar]) / sdX
             diff[np.isnan(diff)] = 0.0
-            Delta += np.sum(diff**2, axis=0)
+            d2 = np.sum(diff**2, axis=1)
 
             if (iiter + 1) % CRupdatefreq == 0:
                 # Update pCR (function AdaptpCR of BayesianTools)
-                if np.any(Delta > 0):  # since /sum(Delta)
+                if np.any(d2 > 0):  # since /sum(Delta)
                     CR = CR.flatten()  # change CR to single vector
-                    lCR_old = lCR.copy()
-                    lCR = np.full((nCR,), np.nan)
+                    d2 = d2.repeat(CRupdatefreq)  # repeat each d2 CRupdatefreq times to match length of CR
                     for k in range(nCR):
-                        lCR[k] = lCR_old[k] + len(np.where(CR == (k + 1) / nCR)[0])
+                        mask = CR == (k + 1) / nCR
+                        Delta[k] += np.sum(d2[mask])
+                        lCR[k] += np.sum(mask)
                     pCR = iiter * nchains * (Delta / lCR) / np.sum(Delta)  # p275 in Vrugt et al 2009
                     pCR[np.where(np.isnan(pCR))] = 1 / nCR  # can occur in beginning when lCR is 0?
                     pCR /= np.sum(pCR)  # normalisation
