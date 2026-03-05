@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 from typing import Tuple, List, Dict, Any, Optional
 from datetime import datetime, timezone
@@ -9,7 +10,7 @@ from scipy.stats import uniform, gaussian_kde
 
 from frear.domain import lon2ix, lat2iy
 from frear.MCMC_aux import check_convergence
-from frear.tools import rstart2tstart, rstop2tstop
+from frear.tools import rstart2tstart, rstop2tstop, to_timestamp, to_timestamps
 from frear.tools import _signif
 
 # -----------------------------------------------------------------------------
@@ -473,47 +474,108 @@ def monovar_marginal_post(chainburned: np.ndarray,
     for ipar in range(npar):
         ax = axes[ipar]
         data = chaindf[parnames[ipar].replace("rstart", "tstart").replace("rstop", "tstop")].values
+        is_datetime_param = "start" in parnames[ipar] or "stop" in parnames[ipar]
 
-        if isinstance(data[0], datetime):
-            data = np.array([d.timestamp() for d in data])
-        if isinstance(data[0], np.datetime64):
-            data = data.astype(int) / 1e9
+        # Convert datetime-like objects to numeric (timestamp) values for KDE evaluation
+        data = to_timestamps(data)
 
         kde = gaussian_kde(data)
         x_eval = np.linspace(data.min(), data.max(), 200)
+        
+        # If it's a datetime parameter, convert to datetime for matplotlib
+        if is_datetime_param:
+            x_eval_plot = [datetime.fromtimestamp(ts, tz=timezone.utc) for ts in x_eval]
+        else:
+            x_eval_plot = x_eval
+            
         y_eval = kde(x_eval)
-        ax.fill_between(x_eval, y_eval, color="#22A884FF", alpha=0.6, label="Posterior")
-        ax.plot(x_eval, y_eval, color="slateblue", lw=1)
+        ax.fill_between(x_eval_plot, y_eval, color="#22A884FF", alpha=0.6, label="Posterior")
+        ax.plot(x_eval_plot, y_eval, color="slateblue", lw=1)
 
         prior_x = np.linspace(lower_bayes[ipar], upper_bayes[ipar], nbreaks)
+        if is_datetime_param:
+            prior_x_plot = [datetime.fromtimestamp(ts, tz=timezone.utc) for ts in prior_x]
+        else:
+            prior_x_plot = prior_x
         prior_y = np.ones_like(prior_x) / (upper_bayes[ipar] - lower_bayes[ipar])
-        ax.plot(prior_x, prior_y, color="green", lw=1, label="Prior")
+        ax.plot(prior_x_plot, prior_y, color="green", lw=1, label="Prior")
 
         if isinstance(post_median[ipar], datetime) or not np.isnan(post_median[ipar]):
-            ax.axvline(post_median[ipar], color="blue", ls='--', lw=1)
+            if is_datetime_param:
+                if not isinstance(post_median[ipar], datetime):
+                    post_median_plot = datetime.fromtimestamp(post_median[ipar], tz=timezone.utc)
+                else:
+                    post_median_plot = post_median[ipar]
+            else:
+                post_median_plot = post_median[ipar]
+            ax.axvline(post_median_plot, color="blue", ls='--', lw=1)
         if isinstance(post_mode[ipar], datetime) or not np.isnan(post_mode[ipar]):
-            ax.axvline(post_mode[ipar], color="green", ls='--', lw=1)
+            if is_datetime_param:
+                if not isinstance(post_mode[ipar], datetime):
+                    post_mode_plot = datetime.fromtimestamp(post_mode[ipar], tz=timezone.utc)
+                else:
+                    post_mode_plot = post_mode[ipar]
+            else:
+                post_mode_plot = post_mode[ipar]
+            ax.axvline(post_mode_plot, color="green", ls='--', lw=1)
         if isinstance(true_values[ipar], datetime) or not np.isnan(true_values[ipar]):
-            ax.axvline(true_values[ipar], color="red", lw=1)
+            if is_datetime_param:
+                if not isinstance(true_values[ipar], datetime):
+                    true_val_plot = datetime.fromtimestamp(true_values[ipar], tz=timezone.utc)
+                else:
+                    true_val_plot = true_values[ipar]
+            else:
+                true_val_plot = true_values[ipar]
+            ax.axvline(true_val_plot, color="red", lw=1)
 
         if lpriorrange:
             if "rstart" in parnames[ipar] or "rstop" in parnames[ipar]:
                 lb = lower_bayes[ipar]
-                if isinstance(lb, datetime):
-                    lb = lb.timestamp()
-                elif isinstance(lb, np.datetime64):
-                    lb = lb.astype(int) / 1e9
+                lb = to_timestamp(lb)
+
                 ub = upper_bayes[ipar]
-                if isinstance(ub, datetime):
-                    ub = ub.timestamp()
-                elif isinstance(ub, np.datetime64):
-                    ub = ub.astype(int) / 1e9
-                ax.set_xlim(lb, ub)
+                ub = to_timestamp(ub)
+
+                if is_datetime_param:
+                    lb_datetime = datetime.fromtimestamp(lb, tz=timezone.utc)
+                    ub_datetime = datetime.fromtimestamp(ub, tz=timezone.utc)
+                    ax.set_xlim(lb_datetime, ub_datetime)
+                else:
+                    ax.set_xlim(lb, ub)
             else: 
                 ax.set_xlim(lower_bayes[ipar], upper_bayes[ipar])
+        else:
+            # Zoomed posterior plot: set x-axis limits to min and max of (data + true value)
+            zoom_lb = float(np.min(data))
+            zoom_ub = float(np.max(data))
+    
+            true_val_num = None if pd.isna(true_values[ipar]) else to_timestamp(true_values[ipar])
+
+            if true_val_num is not None:
+                zoom_lb = min(zoom_lb, true_val_num)
+                zoom_ub = max(zoom_ub, true_val_num)
+
+            if zoom_lb == zoom_ub:
+                pad = max(abs(zoom_lb) * 0.01, 1e-6)
+                zoom_lb -= pad
+                zoom_ub += pad
+
+            if is_datetime_param:
+                ax.set_xlim(
+                    datetime.fromtimestamp(zoom_lb, tz=timezone.utc),
+                    datetime.fromtimestamp(zoom_ub, tz=timezone.utc)
+                )
+            else:
+                ax.set_xlim(zoom_lb, zoom_ub)
         ax.set_title(parnames[ipar] if "start" not in parnames[ipar] and "stop" not in parnames[ipar] else parnames[ipar].replace("rstart", "tstart").replace("rstop", "tstop"))
         ax.set_ylabel("Density")
         ax.grid(True, ls='--', alpha=0.3)
+        
+        # Format x-axis as readable date+time for tstart and tstop parameters
+        if is_datetime_param:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M'))
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
 
     for j in range(npar, len(axes)):
         fig.delaxes(axes[j])
@@ -599,53 +661,80 @@ def bivariate_marginal_post(chainburned: np.ndarray,
             # Diagonal
             if i == j:
                 data = chaindf.iloc[:, i].values
+                is_datetime_param = "start" in parnames[i] or "stop" in parnames[i]
 
-                if isinstance(data[0], datetime):
-                    data = np.array([d.timestamp() for d in data])
-                if isinstance(data[0], np.datetime64):
-                    data = data.astype(int) / 1e9
+                # Convert datetime-like objects to numeric (timestamp) values for KDE evaluation
+                data = to_timestamps(data)
 
                 kde = gaussian_kde(data)
                 x_eval = np.linspace(data.min(), data.max(), 200)
+        
+                # If it's a datetime parameter, convert to datetime for matplotlib
+                if is_datetime_param:
+                    x_eval_plot = [datetime.fromtimestamp(ts, tz=timezone.utc) for ts in x_eval]
+                else:
+                    x_eval_plot = x_eval
+            
                 y_eval = kde(x_eval)
-                ax.fill_between(x_eval, y_eval, color="#22A884FF", alpha=0.6, label="Posterior")
-                ax.plot(x_eval, y_eval, color="slateblue", lw=1)
-                
-                if not np.isnan(post_median[i]):
-                    ax.axvline(post_median[i], color="blue", ls='--', lw=1)
-                if not np.isnan(post_mode[i]):
-                    ax.axvline(post_mode[i], color="green", ls='--', lw=1)
-                if not np.isnan(true_values[i]):
-                    ax.axvline(true_values[i], color="red", lw=1)
+                ax.fill_between(x_eval_plot, y_eval, color="#22A884FF", alpha=0.6, label="Posterior")
+                ax.plot(x_eval_plot, y_eval, color="slateblue", lw=1)
+
+                if isinstance(post_median[i], datetime) or not np.isnan(post_median[i]):
+                    if is_datetime_param:
+                        if not isinstance(post_median[i], datetime):
+                            post_median_plot = datetime.fromtimestamp(post_median[i], tz=timezone.utc)
+                        else:
+                            post_median_plot = post_median[i]
+                    else:
+                        post_median_plot = post_median[i]
+                    ax.axvline(post_median_plot, color="blue", ls='--', lw=1)
+                if isinstance(post_mode[i], datetime) or not np.isnan(post_mode[i]):
+                    if is_datetime_param:
+                        if not isinstance(post_mode[i], datetime):
+                            post_mode_plot = datetime.fromtimestamp(post_mode[i], tz=timezone.utc)
+                        else:
+                            post_mode_plot = post_mode[i]
+                    else:
+                        post_mode_plot = post_mode[i]
+                    ax.axvline(post_mode_plot, color="green", ls='--', lw=1)
+                if isinstance(true_values[i], datetime) or not np.isnan(true_values[i]):
+                    if is_datetime_param:
+                        if not isinstance(true_values[i], datetime):
+                            true_val_plot = datetime.fromtimestamp(true_values[i], tz=timezone.utc)
+                        else:
+                            true_val_plot = true_values[i]
+                    else:
+                        true_val_plot = true_values[i]
+                    ax.axvline(true_val_plot, color="red", lw=1)
                 
                 ax.set_xlabel(parnames[i])
                 ax.set_ylabel("Density")
                 ax.grid(True, ls='--', alpha=0.3)
 
+                # Format x-axis as readable date+time for tstart and tstop parameters
+                if is_datetime_param:
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M'))
+                    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+                    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
             elif j > i:
+                # Skip bivariate KDE if either parameter is fixed (lower_bayes == upper_bayes)
+                if lower_bayes[i] == upper_bayes[i] or lower_bayes[j] == upper_bayes[j]:
+                    ax.axis('off')
+                    continue
+                
                 xdata = chaindf.iloc[:, i].values
                 ydata = chaindf.iloc[:, j].values
 
-                if isinstance(xdata[0], datetime):
-                    xdata = np.array([d.timestamp() for d in xdata])
-                if isinstance(xdata[0], np.datetime64):
-                    xdata = xdata.astype(int) / 1e9
-                if isinstance(ydata[0], datetime):
-                    ydata = np.array([d.timestamp() for d in ydata])
-                if isinstance(ydata[0], np.datetime64):
-                    ydata = ydata.astype(int) / 1e9
+                is_x_datetime_param = "start" in parnames[i] or "stop" in parnames[i]
+                is_y_datetime_param = "start" in parnames[j] or "stop" in parnames[j]
+
+                xdata = to_timestamps(xdata)
+                ydata = to_timestamps(ydata)
                 
                 nx = ny = 50
                 x_min, x_max = xdata.min(), xdata.max()
                 y_min, y_max = ydata.min(), ydata.max()
-                if isinstance(y_min, datetime):
-                    y_min = y_min.timestamp()
-                elif isinstance(y_min, np.datetime64):
-                    y_min = y_min.astype(int) / 1e9
-                if isinstance(y_max, datetime):
-                    y_max = y_max.timestamp()
-                elif isinstance(y_max, np.datetime64):
-                    y_max = y_max.astype(int) / 1e9
                 xi = np.linspace(x_min, x_max, nx)
                 yi = np.linspace(y_min, y_max, ny)
                 xi_grid, yi_grid = np.meshgrid(xi, yi)
@@ -654,18 +743,77 @@ def bivariate_marginal_post(chainburned: np.ndarray,
                 kde2 = gaussian_kde(np.vstack([xdata, ydata]))
                 zi = kde2(np.vstack([xi_grid.ravel(), yi_grid.ravel()])).reshape(xi_grid.shape)
 
-                im = ax.contourf(xi_grid, yi_grid, zi, levels=20, cmap='viridis')
+                if is_x_datetime_param:
+                    xi_grid_plot = np.array([[datetime.fromtimestamp(ts, tz=timezone.utc) for ts in row] for row in xi_grid])
+                else:
+                    xi_grid_plot = xi_grid
+                if is_y_datetime_param:
+                    yi_grid_plot = np.array([[datetime.fromtimestamp(ts, tz=timezone.utc) for ts in row] for row in yi_grid])
+                else:
+                    yi_grid_plot = yi_grid
+
+                im = ax.contourf(xi_grid_plot, yi_grid_plot, zi, levels=20, cmap='viridis')
                 fig.colorbar(im, ax=ax, label="Density")
                 
                 if not (np.isnan(true_values[i]) or np.isnan(true_values[j])):
-                    ax.scatter(true_values[i], true_values[j], color='red', s=50)
+                    if is_x_datetime_param:
+                        if not isinstance(true_values[i], datetime):
+                            true_val_x_plot = datetime.fromtimestamp(true_values[i], tz=timezone.utc)
+                        else:
+                            true_val_x_plot = true_values[i]
+                    else:
+                        true_val_x_plot = true_values[i]
+                if isinstance(true_values[j], datetime) or not np.isnan(true_values[j]):
+                    if is_y_datetime_param:
+                        if not isinstance(true_values[j], datetime):
+                            true_val_y_plot = datetime.fromtimestamp(true_values[j], tz=timezone.utc)
+                        else:
+                            true_val_y_plot = true_values[j]
+                    else:
+                        true_val_y_plot = true_values[j]
+                    ax.scatter(true_val_x_plot, true_val_y_plot, color='red', s=50)
+                
                 if not (np.isnan(post_median[i]) or np.isnan(post_median[j])):
-                    ax.scatter(post_median[i], post_median[j], color='blue', s=50)
+                    if is_x_datetime_param:
+                        if not isinstance(post_median[i], datetime):
+                            post_median_x_plot = datetime.fromtimestamp(post_median[i], tz=timezone.utc)
+                        else:
+                            post_median_x_plot = post_median[i]
+                    else:
+                        post_median_x_plot = post_median[i]
+                    if is_y_datetime_param:
+                        if not isinstance(post_median[j], datetime):
+                            post_median_y_plot = datetime.fromtimestamp(post_median[j], tz=timezone.utc)
+                        else:
+                            post_median_y_plot = post_median[j]                    
+                    else:
+                        post_median_y_plot = post_median[j]
+                    ax.scatter(post_median_x_plot, post_median_y_plot, color='blue', s=50)
+                
                 if not (np.isnan(post_mode[i]) or np.isnan(post_mode[j])):
-                    ax.scatter(post_mode[i], post_mode[j], color='green', s=50)
+                    if is_x_datetime_param:
+                        if not isinstance(post_mode[i], datetime):
+                            post_mode_x_plot = datetime.fromtimestamp(post_mode[i], tz=timezone.utc)
+                        else:
+                            post_mode_x_plot = post_mode[i]
+                    else:
+                        post_mode_x_plot = post_mode[i]
+                    if is_y_datetime_param:
+                        if not isinstance(post_mode[j], datetime):
+                            post_mode_y_plot = datetime.fromtimestamp(post_mode[j], tz=timezone.utc)
+                        else:
+                            post_mode_y_plot = post_mode[j]
+                    else:
+                        post_mode_y_plot = post_mode[j]
+                    ax.scatter(post_mode_x_plot, post_mode_y_plot, color='green', s=50)
                 ax.set_xlabel(parnames[i])
                 ax.set_ylabel(parnames[j])
                 ax.grid(True, ls='--', alpha=0.3)
+                # Format x-axis as readable date+time for tstart and tstop parameters
+                if is_x_datetime_param:
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M'))
+                    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+                    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
             else:
                 # Lower triangle: empty
                 ax.axis('off')
