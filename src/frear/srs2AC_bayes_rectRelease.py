@@ -68,8 +68,8 @@ def srs2AC_bayes_rectRelease_setup(settings: Dict[str, Any], nobs: int) -> Dict[
         lon0 = settings["trueValues"][0]
         lat0 = settings["trueValues"][1]
 
-        upper_bayes[0: 1] = [lon0, lat0]
-        lower_bayes[0: 1] = [lon0, lat0]
+        upper_bayes[0: 2] = [lon0, lat0]
+        lower_bayes[0: 2] = [lon0, lat0]
         
         if settings['adaptation'] != 0:
             settings['adaptation'] = 0
@@ -79,8 +79,8 @@ def srs2AC_bayes_rectRelease_setup(settings: Dict[str, Any], nobs: int) -> Dict[
         rstart0 = settings["trueValues"][3]
         rstop0 = settings["trueValues"][4]
 
-        upper_bayes[3: 4] = [rstart0, rstop0]
-        lower_bayes[3: 4] = [rstart0, rstop0]
+        upper_bayes[3: 5] = [rstart0, rstop0]
+        lower_bayes[3: 5] = [rstart0, rstop0]
 
         if settings['adaptation'] != 0:
             settings['adaptation'] = 0
