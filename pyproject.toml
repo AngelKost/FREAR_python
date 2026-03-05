@@ -1,6 +1,6 @@
 [project]
 name = "frear"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python implementation of FREAR Bayesian atmospheric reconstruction."
 authors = [{name="AngelKost"}]
 requires-python = ">=3.12"
@@ -12,7 +12,9 @@ dependencies = [
     "scipy",
     "pandas",
     "matplotlib",
-    "cartopy"
+    "cartopy",
+    "xarray",
+    "xesmf"
 ]
 
 [build-system]
