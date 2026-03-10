@@ -479,18 +479,21 @@ def monovar_marginal_post(chainburned: np.ndarray,
         # Convert datetime-like objects to numeric (timestamp) values for KDE evaluation
         data = to_timestamps(data)
 
-        kde = gaussian_kde(data)
-        x_eval = np.linspace(data.min(), data.max(), 200)
-        
-        # If it's a datetime parameter, convert to datetime for matplotlib
-        if is_datetime_param:
-            x_eval_plot = [datetime.fromtimestamp(ts, tz=timezone.utc) for ts in x_eval]
-        else:
-            x_eval_plot = x_eval
+        try:
+            kde = gaussian_kde(data)
+            x_eval = np.linspace(data.min(), data.max(), 200)
             
-        y_eval = kde(x_eval)
-        ax.fill_between(x_eval_plot, y_eval, color="#22A884FF", alpha=0.6, label="Posterior")
-        ax.plot(x_eval_plot, y_eval, color="slateblue", lw=1)
+            # If it's a datetime parameter, convert to datetime for matplotlib
+            if is_datetime_param:
+                x_eval_plot = [datetime.fromtimestamp(ts, tz=timezone.utc) for ts in x_eval]
+            else:
+                x_eval_plot = x_eval
+                
+            y_eval = kde(x_eval)
+            ax.fill_between(x_eval_plot, y_eval, color="#22A884FF", alpha=0.6, label="Posterior")
+            ax.plot(x_eval_plot, y_eval, color="slateblue", lw=1)
+        except Exception as e:
+            print(f"Error in KDE plot for parameter {parnames[ipar]}: {e}")
 
         prior_x = np.linspace(lower_bayes[ipar], upper_bayes[ipar], nbreaks)
         if is_datetime_param:
@@ -604,6 +607,7 @@ def bivariate_marginal_post(chainburned: np.ndarray,
                             times: np.ndarray,
                             lower_bayes: np.ndarray,
                             upper_bayes: np.ndarray,
+                            settings: Optional[Dict[str, Any]] = None,
                             true_values: Optional[np.ndarray] = None,
                             post_median: Optional[np.ndarray] = None,
                             post_mode: Optional[np.ndarray] = None,
@@ -617,6 +621,7 @@ def bivariate_marginal_post(chainburned: np.ndarray,
         times (np.ndarray): Array of times corresponding to the chain
         lower_bayes (np.ndarray): Lower bounds of the parameters
         upper_bayes (np.ndarray): Upper bounds of the parameters
+        settings (Optional[Dict[str, Any]]): Settings dictionary
         true_values (Optional[np.ndarray]): True values of the parameters
         post_median (Optional[np.ndarray]): Posterior median values of the parameters
         post_mode (Optional[np.ndarray]): Posterior mode values of the parameters
@@ -636,7 +641,7 @@ def bivariate_marginal_post(chainburned: np.ndarray,
         post_mode=post_mode if post_mode is not None else np.full(5, np.nan),
         lower_bayes=lower_bayes if lower_bayes is not None else np.full(npar, np.nan),
         upper_bayes=upper_bayes if upper_bayes is not None else np.full(npar, np.nan),
-        settings={},
+        settings=settings if settings is not None else {},
         parnames=parnames,
         nbreaks=50
     )
@@ -666,18 +671,21 @@ def bivariate_marginal_post(chainburned: np.ndarray,
                 # Convert datetime-like objects to numeric (timestamp) values for KDE evaluation
                 data = to_timestamps(data)
 
-                kde = gaussian_kde(data)
-                x_eval = np.linspace(data.min(), data.max(), 200)
-        
-                # If it's a datetime parameter, convert to datetime for matplotlib
-                if is_datetime_param:
-                    x_eval_plot = [datetime.fromtimestamp(ts, tz=timezone.utc) for ts in x_eval]
-                else:
-                    x_eval_plot = x_eval
+                try:
+                    kde = gaussian_kde(data)
+                    x_eval = np.linspace(data.min(), data.max(), 200)
             
-                y_eval = kde(x_eval)
-                ax.fill_between(x_eval_plot, y_eval, color="#22A884FF", alpha=0.6, label="Posterior")
-                ax.plot(x_eval_plot, y_eval, color="slateblue", lw=1)
+                    # If it's a datetime parameter, convert to datetime for matplotlib
+                    if is_datetime_param:
+                        x_eval_plot = [datetime.fromtimestamp(ts, tz=timezone.utc) for ts in x_eval]
+                    else:
+                        x_eval_plot = x_eval
+                
+                    y_eval = kde(x_eval)
+                    ax.fill_between(x_eval_plot, y_eval, color="#22A884FF", alpha=0.6, label="Posterior")
+                    ax.plot(x_eval_plot, y_eval, color="slateblue", lw=1)
+                except Exception as e:
+                    print(f"Error in KDE plot for parameter {parnames[i]}: {e}")
 
                 if isinstance(post_median[i], datetime) or not np.isnan(post_median[i]):
                     if is_datetime_param:

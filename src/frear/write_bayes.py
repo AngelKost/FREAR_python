@@ -271,6 +271,7 @@ def write_bayes(out: Dict[str, Any], mcmc: Dict[str, Any],
 
     bivariate_marginal_post(chainburned=chainburned, times = settings['times'],
                             lower_bayes=data['lower_bayes'], upper_bayes=data['upper_bayes'], 
+                            settings=settings,
                             true_values = settings['trueValues'],
                             post_median = mcmc['post_median'],
                             post_mode = mcmc['post_mode'],
@@ -343,12 +344,13 @@ def write_bayes(out: Dict[str, Any], mcmc: Dict[str, Any],
         #plain plot
         plot_probloc_plain(probloc, domain, title="Bayesian source location probability",
                         IMSfile=settings['IMSfile'], reactorfile=settings['reactorfile'], outpath=outpath)
-        
-        # KDE plot
-        plot_probloc_kde(chainburned, domain, IMSfile=settings['IMSfile'], reactorfile=settings['reactorfile'],
-                        breaks=np.arange(0.1,1.1,0.1), outpath=outpath)
-        
-        # KDE zoomed
-        plot_probloc_kde_zoom(chainburned, domain, bound=settings['nProbLocBoundary'],
-                            IMSfile=settings['IMSfile'], reactorfile=settings['reactorfile'], outpath=outpath)
+
+        if np.sum(np.array(probloc) != 0) > 1:
+            # KDE plot
+            plot_probloc_kde(chainburned, domain, IMSfile=settings['IMSfile'], reactorfile=settings['reactorfile'],
+                            breaks=np.arange(0.1,1.1,0.1), outpath=outpath)
+            
+            # KDE zoomed
+            plot_probloc_kde_zoom(chainburned, domain, bound=settings['nProbLocBoundary'],
+                                IMSfile=settings['IMSfile'], reactorfile=settings['reactorfile'], outpath=outpath)
     
