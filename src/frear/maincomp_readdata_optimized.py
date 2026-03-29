@@ -95,7 +95,8 @@ def maincomp_readdata(
     srs_memmap_path: Optional[str] = None,
     gaussian_smoothing: bool = False,
     gaussian_sigma: Optional[float] = None,
-    regrid_method: str = 'bilinear'
+    regrid_method: str = 'bilinear',
+    station_names: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Main function to read and process data from .nc and .csv files, replicating maincomp_readdata pipeline.
@@ -126,7 +127,8 @@ def maincomp_readdata(
     """
 
     # Generate station names and indices based on lat/lon for entity inference
-    station_names = [f'STA_{lat:.3f}_{lon:.3f}' for lat, lon in zip(lats, lons)]
+    if station_names is None:
+        station_names = [f'STA_{lat:.3f}_{lon:.3f}' for lat, lon in zip(lats, lons)]
     sensor_indices = {station_names[idx]: idx for idx in range(len(station_names))}
 
     # Read observations from CSV and build samples DataFrame
