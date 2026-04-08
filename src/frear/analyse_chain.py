@@ -109,40 +109,56 @@ def chain_summary(chainburned: np.ndarray, chainburned_parnames: List[str],
 
     return chainsum, prob_labels
 
-def get_posterior_mode(chain: np.ndarray) -> np.ndarray:
-    """Calculate the posterior mode from MCMC chain
+def _half_sample_mode(data: np.ndarray) -> float:
+    """
+    Recursive search for area of main density
+
+    Parameters:
+        data (np.ndarray): 1D array of samples for a single parameter
+
+    Returns:
+        mode (float): Estimated mode of the distribution
+    """
+    data = np.sort(data)
+    n = len(data)
     
+    if n == 1:
+        return data[0]
+    if n == 2:
+        return np.mean(data)
+    if n == 3:
+        # 3 points -> closest pair
+        if (data[1] - data[0]) < (data[2] - data[1]):
+            return np.mean(data[:2])
+        return np.mean(data[1:])
+
+    # half of an array with minimum width
+    h = int(np.ceil(n / 2))
+    widths = data[h:] - data[:n-h]
+    best_idx = np.argmin(widths)
+    
+    return _half_sample_mode(data[best_idx : best_idx + h])
+
+def get_posterior_mode(chain: np.ndarray) -> np.ndarray:
+    """
+    Calculate the posterior mode for each parameter in the MCMC chain
+
     Parameters:
         chain (np.ndarray): Burned and thinned MCMC chain with shape (niter, npar)
-    
+
     Returns:
         post_mode (np.ndarray): Posterior mode for each parameter
     """
-    npar = chain.shape[1]
-    post_mode = np.zeros(npar, dtype=float)
+    # Check for constant
+    std = np.std(chain, axis=0)
+    post_mode = np.zeros(chain.shape[1])
     
-    colAllEqual = np.abs(chain.max(axis=0) - chain.min(axis=0)) < 1e-18
-    post_mode[colAllEqual] = chain[0, colAllEqual]
-
-    #reduce precision if too many unique rows
-    digits = 6
-    rounded_chain = chain.copy()
-    unique_rows = np.unique(rounded_chain, axis=0)
-    n_samples = chain.shape[0]
-
-    while len(unique_rows) > 0.2 * n_samples and digits >= 0:
-        rounded_chain = _signif(chain, digits)
-        unique_rows = np.unique(rounded_chain, axis=0)
-        digits -= 1
-
-    unique_rows = np.unique(rounded_chain, axis=0)
-    occurrences = np.array([np.sum(np.all(rounded_chain == unique_row, axis=1)) for unique_row in unique_rows])
-
-    if sum(occurrences == max(occurrences)) > 1:
-        print('There is more than one posterior mode; printing all, using the first one')
-        print(np.where(occurrences == max(occurrences))[0])
-    
-    post_mode[~colAllEqual] = unique_rows[np.argmax(occurrences), :][~colAllEqual]
+    for i in range(chain.shape[1]):
+        if std[i] < 1e-12:
+            post_mode[i] = np.mean(chain[:, i])
+        else:
+            post_mode[i] = _half_sample_mode(chain[:, i])
+            
     return post_mode
 
 # -----------------------------------------------------------------------------
