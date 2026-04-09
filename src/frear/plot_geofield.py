@@ -24,11 +24,11 @@ def add_reactors(ax: plt.Axes, reactorfile: str, domain: Dict[str, Any],
         size (int): Size of reactor markers
     """
     if os.path.exists(reactorfile):
-        cols = ["Reactor", "Country", "Latitude", "Longitude", "NA1", "NA2"]
-        reactors = pd.read_csv(reactorfile, delim_whitespace=True, names=cols)
+        #cols = ["Reactor", "Country", "Latitude", "Longitude", "NA1", "NA2"]
+        reactors = pd.read_csv(reactorfile)
         reactors = reactors[(reactors['Longitude'] >= domain['lonmin']) & (reactors['Longitude'] <= domain['lonmax']) &
                             (reactors['Latitude'] >= domain['latmin']) & (reactors['Latitude'] <= domain['latmax'])]
-        ax.scatter(reactors['Longitude'], reactors['Latitude'], marker=marker, color=color, s=size, zorder=10)
+        ax.scatter(reactors['Longitude'], reactors['Latitude'], marker=marker, color=color, s=size, zorder=10, transform=ccrs.PlateCarree())
     else:
         print(f"Warning: Reactor file '{reactorfile}' not found")
 
