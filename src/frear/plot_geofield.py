@@ -50,18 +50,17 @@ def add_IMS(ax: plt.Axes, IMSfile: str, domain: Dict[str, Any],
         size (int): Size of IMS markers
     """
     if os.path.exists(IMSfile):
-        cols = ["stat_code", "stat_number", "status", "lat", "lon"]
-        IMS = pd.read_csv(IMSfile, delim_whitespace=True, names=cols)
+        IMS = pd.read_csv(IMSfile)
         IMS = IMS[(IMS['lon'] >= domain['lonmin']) & (IMS['lon'] <= domain['lonmax']) &
                   (IMS['lat'] >= domain['latmin']) & (IMS['lat'] <= domain['latmax'])]
         if stat_number is not None:
             IMS = IMS[IMS['stat_number'].isin(stat_number)]
         if len(IMS) > 0:
-            ax.scatter(IMS['lon'], IMS['lat'], marker=marker, color=color, s=size, zorder=10)
+            ax.scatter(IMS['lon'], IMS['lat'], marker=marker, color=color, s=size, zorder=10, transform=ccrs.PlateCarree())
             if use_labels:
                 labels = IMS['stat_code'] if label_type=='code' else IMS['stat_number']
                 for lon, lat, label in zip(IMS['lon'], IMS['lat'], labels):
-                    ax.text(lon, lat + 0.02, label, ha='center', va='bottom', color=color, fontsize=8)
+                    ax.text(lon, lat + 0.02, label, ha='center', va='bottom', color=color, fontsize=8, transform=ccrs.PlateCarree())
     else:
         print(f"Warning: IMS file '{IMSfile}' not found")
 
