@@ -11,6 +11,18 @@ from scipy.stats import gaussian_kde
 from matplotlib.colors import LinearSegmentedColormap, BoundaryNorm
 
 
+def _lon_in_range(lons: np.ndarray, lonmin: float, lonmax: float) -> np.ndarray:
+    """Check longitudes in range [lonmin, lonmax], accounting for wrap-around at 360 degrees"""
+    lons = np.asarray(lons, dtype=float) % 360
+    lonmin_n = lonmin % 360
+    lonmax_n = lonmax % 360
+    if lonmin_n <= lonmax_n:
+        return (lons >= lonmin_n) & (lons <= lonmax_n)
+    else:  
+        # wraps through 0/360
+        return (lons >= lonmin_n) | (lons <= lonmax_n)
+
+
 def add_reactors(ax: plt.Axes, reactorfile: str, domain: Dict[str, Any], 
                  marker='^', color='darkblue', size=50):
     """Add reactors to plot
@@ -26,7 +38,7 @@ def add_reactors(ax: plt.Axes, reactorfile: str, domain: Dict[str, Any],
     if os.path.exists(reactorfile):
         #cols = ["Reactor", "Country", "Latitude", "Longitude", "NA1", "NA2"]
         reactors = pd.read_csv(reactorfile)
-        reactors = reactors[(reactors['Longitude'] >= domain['lonmin']) & (reactors['Longitude'] <= domain['lonmax']) &
+        reactors = reactors[_lon_in_range(reactors['Longitude'].values, domain['lonmin'], domain['lonmax']) &
                             (reactors['Latitude'] >= domain['latmin']) & (reactors['Latitude'] <= domain['latmax'])]
         ax.scatter(reactors['Longitude'], reactors['Latitude'], marker=marker, color=color, s=size, zorder=10, transform=ccrs.PlateCarree())
     else:
@@ -51,7 +63,7 @@ def add_IMS(ax: plt.Axes, IMSfile: str, domain: Dict[str, Any],
     """
     if os.path.exists(IMSfile):
         IMS = pd.read_csv(IMSfile)
-        IMS = IMS[(IMS['lon'] >= domain['lonmin']) & (IMS['lon'] <= domain['lonmax']) &
+        IMS = IMS[_lon_in_range(IMS['lon'].values, domain['lonmin'], domain['lonmax']) &
                   (IMS['lat'] >= domain['latmin']) & (IMS['lat'] <= domain['latmax'])]
         if stat_number is not None:
             IMS = IMS[IMS['stat_number'].isin(stat_number)]
@@ -93,8 +105,9 @@ def plot_2D_direct(
         show (bool): Whether to display the plot
     """
 
+    central_lon = (domain["lonmin"] + domain["lonmax"]) / 2.
     fig = plt.figure(figsize=(10, 10))
-    ax = plt.axes(projection=ccrs.PlateCarree())
+    ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=central_lon))
     ax.coastlines()
     ax.add_feature(cfeature.BORDERS)
     ax.gridlines(draw_labels=True)
@@ -107,7 +120,7 @@ def plot_2D_direct(
 
     if levels is None:
         cmap = LinearSegmentedColormap.from_list("custom_cmap", colors)
-        cf = ax.contourf(xi, yi, data, levels=20, cmap=cmap)
+        cf = ax.contourf(xi, yi, data, levels=20, cmap=cmap, transform=ccrs.PlateCarree())
     else:
         N = len(levels) - 1    
 
@@ -117,7 +130,7 @@ def plot_2D_direct(
         
         cmap = LinearSegmentedColormap.from_list("custom_cmap", colors, N=N)
         norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-        cf = ax.contourf(xi, yi, data, levels=levels, cmap=cmap, norm=norm, extend='max')
+        cf = ax.contourf(xi, yi, data, levels=levels, cmap=cmap, norm=norm, extend='max', transform=ccrs.PlateCarree())
     
     fig.colorbar(cf, ax=ax, label=labels[2])
     ax.set_title(title)

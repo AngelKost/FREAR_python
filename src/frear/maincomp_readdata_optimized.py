@@ -126,6 +126,12 @@ def maincomp_readdata(
             - 'srs_spread': None (placeholder for compatibility with original reader output, SRM.nc is assumed to have no spread dimension)
     """
 
+    # If domain extends beyond 180° (lonmax > 180), normalize station lons and CSV lons to 0-360
+    # so that user-supplied lons in any convention (e.g. -160 or 200) are handled consistently.
+    lons = np.asarray(lons, dtype=float).copy()
+    if domain.get('lonmax', 180) > 180:
+        lons = lons % 360
+
     # Generate station names and indices based on lat/lon for entity inference
     if station_names is None:
         station_names = [f'STA_{lat:.3f}_{lon:.3f}' for lat, lon in zip(lats, lons)]
@@ -133,6 +139,8 @@ def maincomp_readdata(
 
     # Read observations from CSV and build samples DataFrame
     obs_df = read_observations_csv(concentrations_csv_path)
+    if domain.get('lonmax', 180) > 180:
+        obs_df['LON'] = obs_df['LON'] % 360
     obs_df = infer_station_names(obs_df, list(zip(lats, lons)), station_names)
     obs_df = delete_duplicate_observations(obs_df)
 

@@ -81,10 +81,11 @@ def plot_probloc_plain(probloc: np.ndarray, domain: Dict[str, Any], title: str =
     colors = ['red', 'yellow', 'royalblue', 'white'][::-1]
     cmap = mcolors.LinearSegmentedColormap.from_list("plume_cmap", colors, N=len(levels)-1)
 
+    central_lon = (domain['lonmin'] + domain['lonmax']) / 2.
     scale_fig = (domain['lonmax'] - domain['lonmin']) / (domain['latmax'] - domain['latmin'])
     fig = plt.figure(figsize=(10, 10 * (1/scale_fig)**(2/3)))
-    ax = plt.axes(projection=ccrs.PlateCarree())
-    cf = ax.pcolormesh(lons, lats, probloc, cmap=cmap, shading='auto', norm=mcolors.BoundaryNorm(levels, ncolors=cmap.N))
+    ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=central_lon))
+    cf = ax.pcolormesh(lons, lats, probloc, cmap=cmap, shading='auto', norm=mcolors.BoundaryNorm(levels, ncolors=cmap.N), transform=ccrs.PlateCarree())
 
     ax.coastlines()
     ax.add_feature(cfeature.BORDERS)
@@ -124,7 +125,7 @@ def plot_probloc_kde(chainburned: np.ndarray, domain: Dict[str, Any],
         show (bool): Whether to display the plot
     """
     fig = plt.figure(figsize=(10, 10))
-    ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=domain.get('central_lon', 0)))
+    ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=domain.get('central_lon', (domain['lonmin'] + domain['lonmax']) / 2.)))
 
     x = chainburned[:,0]
     y = chainburned[:,1]
